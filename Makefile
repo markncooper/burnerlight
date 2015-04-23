@@ -8,11 +8,11 @@
 .DEFAULT_GOAL := apps
 
 #### Programs used by this Makefile ############################################
-CC := sdcc#         C compiler: creates object files (.rel) from C files (.c)
+CC := /usr/local/bin/sdcc#         C compiler: creates object files (.rel) from C files (.c)
 AS := sdas8051#     Assembler:  creates object files (.rel) from assembly files (.s)
 AR := sdcclib#      Librarian:  creates .lib
 LD := sdld#         Linker:     creates .hex files from .rel/.lib files)
-PACKIHX := packihx# makes .hex files smaller
+PACKIHX := /usr/local/bin/packihx# makes .hex files smaller
 MV := move#         moves files
 CP := cp#           copies files
 CAT := cat#         outputs files

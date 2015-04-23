@@ -10,8 +10,9 @@ http://www.pololu.com/docs/0J46
 #include <usb.h>
 #include <usb_com.h>
 #include <stdio.h>
+#include <time.h>
 
-int32 CODE param_blink_period_ms = 500;
+int32 CODE broadcast_interval = 2000;
 
 uint32 lastToggle = 0;
 
@@ -20,12 +21,9 @@ void updateLeds()
     usbShowStatusWithGreenLed();
 
     LED_YELLOW(0);
-
-    if (getMs() - lastToggle >= param_blink_period_ms/2)
-    {
-        LED_RED(!LED_RED_STATE);
-        lastToggle = getMs();
-    }
+    delayMs(1000);
+    LED_YELLOW(1);
+    delayMs(1000);
 }
 
 void main()
