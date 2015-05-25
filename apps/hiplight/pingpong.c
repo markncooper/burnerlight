@@ -28,6 +28,7 @@ int8 shift;
 void sendBit(BIT value);
 void toggleLatch();
 void sendRGB(uint16 r, uint16 g, uint16 b);
+void sendRGBa(uint16 rgb[]);
 
 
 uint8 XDATA * rxBuf;
@@ -53,30 +54,6 @@ typedef struct broadcastMe
     uint8 address[4];
 } broadcastMe;
 
-void readPacket(){
-	colorCommand XDATA * rxPacket;
-
-    if (rxPacket = (colorCommand XDATA *)radioQueueRxCurrentPacket()){
-//        LED_YELLOW(!LED_YELLOW_STATE);
-
-        reportLength = sprintf(report, "read: %02x - r:%02x g:%02x b:%02x\r\n", rxPacket->length, rxPacket->red, rxPacket->green, rxPacket->blue);
-        usbComTxSend(report, reportLength);
-
-        reportLength = sprintf(report, "read: %02x %02x %02x %02x\r\n", serialNumber[0], serialNumber[1], serialNumber[2], serialNumber[3]);
-        usbComTxSend(report, reportLength);
-
-//        reportLength = sprintf(report, "packet read - len:\r\n");
-//        usbComTxSend(report, reportLength);
-
-        sendRGB(0, 0, 100);
-        toggleLatch();
-
-        LED_RED(rxPacket->red);
-        radioQueueRxDoneWithPacket();
-    }
-}
-
-
 int32 toInt(uint8 serial[]){
 	int32 result = (((int32)serial[0]) << 24) + (((int32)serial[1]) << 16) + (((int32)serial[2]) << 8) + (((int32)serial[3]));
 	return result;
@@ -85,17 +62,31 @@ int32 toInt(uint8 serial[]){
 bool isLeader = false;
 bool isSlave = false;
 
-int32 CODE status_strobe_interval = 1000;
+int32 CODE status_strobe_interval = 100;
 uint32 lastStatusStrobe = 0;
+
+uint16 patternOne[6][3] = {
+		{100, 100, 100},
+		{200, 200, 200},
+		{300, 300, 300},
+		{0, 0, 0},
+		{300, 300, 300},
+		{0, 0, 0}};
+
+uint16 patternPosition = 0;
 
 void stobeLeaderFollowerLights(){
     if (getMs() > lastStatusStrobe)
     {
-        lastStatusStrobe = getMs() + 1000;
-    	sendRGB(100, 0, 100);
+        lastStatusStrobe = getMs() + status_strobe_interval;
+//        uint16 foo = patternOne[1]
+        sendRGB(512, 512, 512);
+    	patternPosition ++;
+    	if (patternPosition > 5) patternPosition = 0;
+
     	toggleLatch();
 
-        if (isLeader) LED_GREEN_TOGGLE();
+        if (isLeader) LED_YELLOW_TOGGLE();
         if (isSlave)  LED_RED_TOGGLE();
 //        if (!isLeader && !isSlave) LED_YELLOW_TOGGLE();
     }
@@ -113,6 +104,11 @@ void sendBit(BIT value)
     delayMicroseconds(1);
     SHIFTBRITE_CLOCK = 0;
     delayMicroseconds(1);
+}
+
+void sendRGBa(uint16 rgb[])
+{
+	sendRGB(rgb[0], rgb[1], rgb[2]);
 }
 
 void sendRGB(uint16 r, uint16 g, uint16 b)
@@ -178,6 +174,9 @@ void toggleLatch()
 // Leader discovery
 //
 uint32 myPriorityID;
+uint32 highestIDSeen;
+uint32 highestIDSeenExpirationMS;
+
 int MSG_TYPE_DISCOVER_LEADER_CMD = 1;
 typedef struct discoverLeaderCommand
 {
@@ -195,9 +194,22 @@ void broadcastIdAndListen(){
 
     if (rxPacket = (discoverLeaderCommand XDATA *)radioQueueRxCurrentPacket()){
     	if (rxPacket->id > myPriorityID){
-    		if (isSlave) LED_GREEN(0);
+    		if (isSlave) LED_YELLOW(0);
     		isSlave = true;
     		isLeader = false;
+
+    		//
+    		// Keep track of the highest ID and use it for clock synchronization
+    		// Keep track of the last time this highest ID was seen
+    		//
+    		if (highestIDSeen == rxPacket->id){
+    			highestIDSeenExpirationMS = getMs();
+    		}
+    		if (highestIDSeen < rxPacket->id ){
+    			highestIDSeen = rxPacket->id;
+    	        lastStatusStrobe = getMs() + status_strobe_interval;
+    		}
+
     		slaveStateExpiration = getMs() + 3000;
     	}
 
@@ -244,14 +256,15 @@ void main()
     	//
         boardService();
         usbComService();
-        stobeLeaderFollowerLights();
 
         //
         // Determine a leader
         //
         broadcastIdAndListen();
-        //updateLeds();
-//        readPacket();
-        //writeToConsole();
+
+        //
+        // Do something fun with the lights.
+        //
+        stobeLeaderFollowerLights();
     }
 }
