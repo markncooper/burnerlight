@@ -62,27 +62,120 @@ int32 toInt(uint8 serial[]){
 bool isLeader = false;
 bool isSlave = false;
 
-int32 CODE status_strobe_interval = 100;
+int32 CODE status_strobe_interval = 20;
 uint32 lastStatusStrobe = 0;
 
 uint16 patternOne[6][3] = {
-		{100, 100, 100},
-		{200, 200, 200},
-		{300, 300, 300},
-		{0, 0, 0},
-		{300, 300, 300},
-		{0, 0, 0}};
+		{255, 0, 0},
+		{0, 255, 0},
+		{0, 0, 255},
+		{255, 0, 0},
+		{0, 255, 0},
+		{0, 0, 255}};
 
 uint16 patternPosition = 0;
 
+typedef struct {
+    float r;       // percent
+    float g;       // percent
+    float b;       // percent
+} rgb;
+
+typedef struct {
+	float h;       // angle in degrees
+	float s;       // percent
+	float v;       // percent
+} hsv;
+
+
+void hsv2rgb(float hin, float sin, float vin, float* rr, float* gg, float* bb)
+{
+	float hh;
+	float p;
+    float q;
+    float t;
+    float ff;
+    long i;
+
+
+	hsv in;
+	in.h = hin;
+	in.s = sin;
+	in.v = vin;
+
+    if(in.s <= 0.0) {       // < is bogus, just shuts up warnings
+        *rr = in.v;
+        *gg = in.v;
+        *bb = in.v;
+        return;
+    }
+    hh = in.h;
+    if (hh >= 360.0) hh = 0.0;
+    hh /= 60.0;
+    i = (uint8)hh;
+    ff = hh - i;
+    p = in.v * (1.0 - in.s);
+    q = in.v * (1.0 - (in.s * ff));
+    t = in.v * (1.0 - (in.s * (1.0 - ff)));
+
+    switch(i) {
+    case 0:
+        *rr = in.v;
+        *gg = t;
+        *bb = p;
+        break;
+    case 1:
+    	*rr = q;
+        *gg = in.v;
+        *bb = p;
+        break;
+    case 2:
+    	*rr = p;
+    	*gg = in.v;
+        *bb = t;
+        break;
+
+    case 3:
+    	*rr = p;
+    	*gg = q;
+        *bb = in.v;
+        break;
+    case 4:
+    	*rr = t;
+    	*gg = p;
+        *bb = in.v;
+        break;
+    case 5:
+    default:
+    	*rr = in.v;
+        *gg = p;
+        *bb = q;
+        break;
+    }
+    return;
+}
+
+
 void stobeLeaderFollowerLights(){
+    float r;
+    float g;
+    float b;
+
+    float h = 0;
+
     if (getMs() > lastStatusStrobe)
     {
         lastStatusStrobe = getMs() + status_strobe_interval;
 //        uint16 foo = patternOne[1]
-        sendRGB(512, 512, 512);
-    	patternPosition ++;
-    	if (patternPosition > 5) patternPosition = 0;
+
+        hsv2rgb(patternPosition, 1, 1, &r, &g, &b);
+
+        sendRGB( (uint8)(r*255), (uint8)(g*255), (uint8)(b*255) );
+        sendRGB( (uint8)(r*255), (uint8)(g*255), (uint8)(b*255) );
+        sendRGB( (uint8)(r*255), (uint8)(g*255), (uint8)(b*255) );
+        sendRGB( (uint8)(r*255), (uint8)(g*255), (uint8)(b*255) );
+    	patternPosition += 1;
+    	if (patternPosition > 360) patternPosition = 0;
 
     	toggleLatch();
 
@@ -188,6 +281,7 @@ typedef struct discoverLeaderCommand
 uint32 slaveStateExpiration = 0;
 uint32 nextHelloBroadcast = 0;
 
+
 void broadcastIdAndListen(){
 	discoverLeaderCommand XDATA * rxPacket;
 	discoverLeaderCommand XDATA * txPacket;
@@ -247,6 +341,8 @@ void main()
     shiftbriteInit();
     randomSeedFromSerialNumber();
     myPriorityID = randomNumber();
+
+    sendRGB(255, 255, 255);
 
     //writeToConsole();
     while(1)
