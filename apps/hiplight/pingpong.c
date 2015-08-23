@@ -73,7 +73,8 @@ uint16 patternOne[6][3] = {
 		{0, 255, 0},
 		{0, 0, 255}};
 
-uint16 patternPosition = 0;
+float colorRadius = 0;
+float colorBrightness = 0;
 
 typedef struct {
     float r;       // percent
@@ -155,6 +156,7 @@ void hsv2rgb(float hin, float sin, float vin, float* rr, float* gg, float* bb)
     return;
 }
 
+float intensityIncrement = .01;
 
 void stobeLeaderFollowerLights(){
     float r;
@@ -166,16 +168,21 @@ void stobeLeaderFollowerLights(){
     if (getMs() > lastStatusStrobe)
     {
         lastStatusStrobe = getMs() + status_strobe_interval;
-//        uint16 foo = patternOne[1]
 
-        hsv2rgb(patternPosition, 1, 1, &r, &g, &b);
+//        hsv2rgb(0, 1, 5, &r, &g, &b);
+        hsv2rgb( (uint16)colorRadius, 1, colorBrightness, &r, &g, &b);
 
-        sendRGB( (uint8)(r*255), (uint8)(g*255), (uint8)(b*255) );
-        sendRGB( (uint8)(r*255), (uint8)(g*255), (uint8)(b*255) );
-        sendRGB( (uint8)(r*255), (uint8)(g*255), (uint8)(b*255) );
-        sendRGB( (uint8)(r*255), (uint8)(g*255), (uint8)(b*255) );
-    	patternPosition += 1;
-    	if (patternPosition > 360) patternPosition = 0;
+        sendRGB( (uint8)(r*511), (uint8)(g*511), (uint8)(b*511) );
+        sendRGB( (uint8)(r*511), (uint8)(g*511), (uint8)(b*511) );
+        sendRGB( (uint8)(r*511), (uint8)(g*511), (uint8)(b*511) );
+        sendRGB( (uint8)(r*511), (uint8)(g*511), (uint8)(b*511) );
+
+		colorRadius += .1;
+		colorBrightness += intensityIncrement;
+
+		if (colorRadius > 360) colorRadius = 0;
+		if (colorBrightness >= 1) intensityIncrement = -.01;
+		if (colorBrightness <= 0) intensityIncrement = .01;
 
     	toggleLatch();
 
@@ -276,6 +283,8 @@ typedef struct discoverLeaderCommand
     uint8 length;
     uint8 msgType;
     uint32 id;
+    float colorRadius;
+    float colorBrightness;
 } discoverLeaderCommand;
 
 uint32 slaveStateExpiration = 0;
@@ -298,6 +307,8 @@ void broadcastIdAndListen(){
     		//
     		if (highestIDSeen == rxPacket->id){
     			highestIDSeenExpirationMS = getMs();
+    			colorRadius = rxPacket->colorRadius;
+    			colorBrightness = rxPacket->colorBrightness;
     		}
     		if (highestIDSeen < rxPacket->id ){
     			highestIDSeen = rxPacket->id;
@@ -314,21 +325,27 @@ void broadcastIdAndListen(){
     	radioQueueRxDoneWithPacket();
     }
 
+    //
     // Haven't heard of any IDs higher than mine? Guess I'm the master.
+    //
     if ( getMs() > slaveStateExpiration){
     	isLeader = true;
     	isSlave = false;
 		LED_RED(0)
     }
 
+    //
     // Send out my priority
+    //
     if (getMs() > nextHelloBroadcast){
     	nextHelloBroadcast = getMs() + 100;
 
     	txPacket = (discoverLeaderCommand XDATA *) radioQueueTxCurrentPacket();
-    	txPacket->length = 6;
+    	txPacket->length = 14;
     	txPacket->id = myPriorityID;
     	txPacket->msgType = MSG_TYPE_DISCOVER_LEADER_CMD;
+    	txPacket->colorBrightness = colorBrightness;
+    	txPacket->colorRadius = colorRadius;
     	radioQueueTxSendPacket();
     }
 }
