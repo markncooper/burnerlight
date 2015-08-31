@@ -158,11 +158,14 @@ void hsv2rgb(float hin, float sin, float vin, float* rr, float* gg, float* bb)
 
 float intensityIncrement = .01;
 
-void stobeLeaderFollowerLights(){
+void hotpulseMode(){
+
+}
+
+void rotatingColorMode(){
     float r;
     float g;
     float b;
-
     float h = 0;
 
     if (getMs() > lastStatusStrobe)
@@ -172,24 +175,28 @@ void stobeLeaderFollowerLights(){
 //        hsv2rgb(0, 1, 5, &r, &g, &b);
         hsv2rgb( (uint16)colorRadius, 1, colorBrightness, &r, &g, &b);
 
-        sendRGB( (uint8)(r*511), (uint8)(g*511), (uint8)(b*511) );
-        sendRGB( (uint8)(r*511), (uint8)(g*511), (uint8)(b*511) );
-        sendRGB( (uint8)(r*511), (uint8)(g*511), (uint8)(b*511) );
-        sendRGB( (uint8)(r*511), (uint8)(g*511), (uint8)(b*511) );
+        sendRGB( (uint8)(r*1023), (uint8)(g*1023), (uint8)(b*1023) );
+        sendRGB( (uint8)(r*1023), (uint8)(g*1023), (uint8)(b*1023) );
+        sendRGB( (uint8)(r*1023), (uint8)(g*1023), (uint8)(b*1023) );
+        sendRGB( (uint8)(r*1023), (uint8)(g*1023), (uint8)(b*1023) );
 
-		colorRadius += .1;
-		colorBrightness += intensityIncrement;
+        colorRadius += .1;
+        colorBrightness += intensityIncrement;
 
-		if (colorRadius > 360) colorRadius = 0;
-		if (colorBrightness >= 1) intensityIncrement = -.01;
-		if (colorBrightness <= 0) intensityIncrement = .01;
+        if (colorRadius > 360) colorRadius = 0;
+        if (colorBrightness >= 1) intensityIncrement = -.01;
+        if (colorBrightness <= 0) intensityIncrement = .02;
 
-    	toggleLatch();
+        toggleLatch();
 
         if (isLeader) LED_YELLOW_TOGGLE();
         if (isSlave)  LED_RED_TOGGLE();
 //        if (!isLeader && !isSlave) LED_YELLOW_TOGGLE();
     }
+}
+
+void stobeLeaderFollowerLights(){
+    hotpulseMode();
 }
 
 /**
@@ -306,7 +313,7 @@ void broadcastIdAndListen(){
     		// Keep track of the last time this highest ID was seen
     		//
     		if (highestIDSeen == rxPacket->id){
-    			highestIDSeenExpirationMS = getMs();
+    			highestIDSeenExpirationMS = getMs() + 3000;
     			colorRadius = rxPacket->colorRadius;
     			colorBrightness = rxPacket->colorBrightness;
     		}
@@ -329,6 +336,7 @@ void broadcastIdAndListen(){
     // Haven't heard of any IDs higher than mine? Guess I'm the master.
     //
     if ( getMs() > slaveStateExpiration){
+    	highestIDSeen = 0;
     	isLeader = true;
     	isSlave = false;
 		LED_RED(0)
